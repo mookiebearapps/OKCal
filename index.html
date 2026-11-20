@@ -1,0 +1,786 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OKCal — Calorie Diary Demo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#000;color:#00ff00;font-family:monospace;margin:0;padding:0;user-select:none}
+.screen{max-width:420px;margin:0 auto;padding:8px;position:absolute;top:0;bottom:0;left:0;right:0;display:flex;flex-direction:column}
+
+/* toolbar */
+.toolbar{background:#000;display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #003300}
+.toolbar-title{font-size:20px;color:#00ff00;font-weight:bold}
+.toolbar-right{display:flex;gap:8px}
+.icon-btn{background:none;border:none;color:#00ff00;font-size:22px;cursor:pointer;padding:4px 8px;opacity:.8}
+.icon-btn:hover{opacity:1}
+
+/* date nav */
+.date-row{display:flex;gap:4px;margin:6px 0}
+.date-row button{background:#000;border:1px solid #003300;color:#00ff00;font-family:monospace;cursor:pointer;padding:6px;font-size:14px}
+.date-row button:hover{border-color:#00ff00}
+.date-row .date-btn{flex:1}
+
+/* goal / summary */
+.goal-btn{width:100%;background:#000;border:1px solid #003300;color:#ffff00;font-family:monospace;font-size:18px;padding:10px;cursor:pointer;margin:4px 0;text-align:center}
+.goal-btn:hover{border-color:#ffff00}
+.goal-btn.over{color:#ff4444}
+.summary{font-size:14px;color:#00ff00;padding:4px 0}
+.fasting{font-size:13px;color:#00cc99;padding:2px 0}
+
+/* entry list */
+.entries{flex:1;overflow-y:auto;margin:6px 0}
+.entry{display:flex;align-items:center;padding:6px 4px;border-bottom:1px solid #001100;cursor:pointer}
+.entry:nth-child(even){background:#001100}
+.entry:hover{background:#002200}
+.entry .mark{width:28px;font-size:16px;text-align:center}
+.entry .food{flex:1;color:#00ff00;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entry .cals{width:60px;text-align:right;color:#ffff00;font-size:14px}
+.empty{color:#003300;font-size:18px;text-align:center;padding:40px 0}
+
+/* bottom emoji bar */
+.bottom-bar{display:flex;border-top:1px solid #003300;padding:4px 0;margin-top:auto}
+.bottom-bar button{flex:1;background:none;border:none;font-size:28px;cursor:pointer;padding:8px 0;opacity:.8}
+.bottom-bar button:hover{opacity:1;background:#001100}
+
+/* terminal entry overlay */
+.entry-overlay{display:none;position:fixed;inset:0;background:#000;z-index:100;flex-direction:column;align-items:center;padding:60px 20px 0}
+.entry-overlay.active{display:flex}
+.entry-prompt{font-size:28px;color:#00ff00;margin-bottom:40px;text-align:center}
+.entry-typed{font-size:32px;color:#ffff00;min-height:42px;text-align:center;margin-bottom:10px;word-break:break-all}
+.entry-match{font-size:32px;color:#00ff00;min-height:42px;text-align:center;margin-bottom:20px}
+.entry-hint{font-size:20px;color:#00ff00;text-align:center;line-height:1.6}
+.hidden-input{position:absolute;left:0;top:0;opacity:0;width:100%;height:100%;z-index:-1}
+
+/* calorie picker */
+.picker-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;padding:20px}
+.picker-overlay.active{display:flex}
+.picker-box{background:#000;border:1px solid #003300;width:100%;max-width:380px;padding:12px}
+.picker-title{color:#00ff00;font-size:16px;margin-bottom:10px;text-align:center}
+.picker-seq{color:#00cc99;font-size:12px;text-align:center;margin-bottom:6px}
+.mark-row{display:flex;gap:8px;margin-bottom:10px}
+.mark-btn{flex:1;background:#001100;border:1px solid #003300;color:#00ff00;font-family:monospace;font-size:14px;padding:8px;cursor:pointer}
+.mark-btn.active{border-color:#ffff00;color:#ffff00}
+.last-btn{width:100%;background:#001a66;border:none;color:#ffff00;font-family:monospace;font-size:22px;padding:20px;cursor:pointer;margin-bottom:10px}
+.last-btn:hover{background:#002299}
+.cal-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px}
+.cal-btn{background:#001100;border:1px solid #002200;color:#00ff00;font-family:monospace;font-size:15px;padding:10px 4px;cursor:pointer;text-align:center}
+.cal-btn:hover{border-color:#00ff00;background:#002200}
+.picker-actions{display:flex;gap:8px}
+.picker-actions button{flex:1;background:#000;border:1px solid #003300;color:#00ff00;font-family:monospace;font-size:14px;padding:10px;cursor:pointer}
+.picker-actions button:hover{border-color:#00ff00}
+.custom-input{width:100%;background:#111;border:1px solid #003300;color:#ffff00;font-family:monospace;font-size:18px;padding:10px;margin-bottom:8px;display:none}
+.custom-input:focus{outline:none;border-color:#ffff00}
+
+/* goal dialog */
+.dialog-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;align-items:flex-start;justify-content:center;padding:20px;padding-top:15vh}
+.dialog-overlay.active{display:flex}
+.dialog-box{background:#000;border:1px solid #003300;width:100%;max-width:320px;padding:16px}
+.dialog-box h3{color:#00ff00;margin-bottom:12px;font-size:16px}
+.dialog-input{width:100%;background:#111;border:1px solid #003300;color:#ffff00;font-family:monospace;font-size:20px;padding:10px;margin-bottom:12px}
+.dialog-input:focus{outline:none;border-color:#ffff00}
+.dialog-actions{display:flex;gap:8px}
+.dialog-actions button{flex:1;background:#000;border:1px solid #003300;color:#00ff00;font-family:monospace;padding:10px;cursor:pointer}
+.dialog-actions button:hover{border-color:#00ff00}
+
+/* entry options */
+.options-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:250;align-items:flex-end;justify-content:center;padding:20px}
+.options-overlay.active{display:flex}
+.options-box{background:#000;border:1px solid #003300;width:100%;max-width:380px}
+.options-title{color:#00ff00;font-size:15px;padding:12px;border-bottom:1px solid #002200;text-align:center}
+.options-item{display:block;width:100%;background:none;border:none;border-bottom:1px solid #001100;color:#00ff00;font-family:monospace;font-size:16px;padding:14px 16px;cursor:pointer;text-align:left}
+.options-item:hover{background:#001100}
+.options-item.danger{color:#ff4444}
+
+/* toast */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#001100;border:1px solid #00ff00;color:#00ff00;font-family:monospace;font-size:14px;padding:10px 20px;z-index:400;display:none;white-space:nowrap}
+</style>
+</head>
+<body>
+<h2 class="sr-only" style="position:absolute;left:-9999px">OKCal calorie diary demo — log foods, track calories, view fasting time</h2>
+
+<div class="screen" id="mainScreen">
+ <div class="toolbar">
+   <span class="toolbar-title">OKCal</span>
+   <div class="toolbar-right">
+     <button class="icon-btn" onclick="showGraph()" title="Graphs">📉</button>
+     <button class="icon-btn" onclick="exportCSV()" title="Export CSV">📤</button>
+   </div>
+ </div>
+
+ <div class="date-row">
+   <button onclick="shiftDate(-1)"><</button>
+   <button class="date-btn" id="dateBtn" onclick="goToday()">Today (Mon)</button>
+   <button onclick="shiftDate(1)">></button>
+ </div>
+
+ <button class="goal-btn" id="goalBtn" onclick="showGoalDialog()">Tap to set daily goal</button>
+ <div class="summary" id="summary">⭐0  ☹️0  0 items  0 cal</div>
+ <div class="fasting" id="fastingDiv" style="display:none"></div>
+
+ <div class="entries" id="entriesList">
+   <div class="empty">No entries yet.<br>Tap ⌨️ to add food.</div>
+ </div>
+
+ <div class="bottom-bar">
+   <button onclick="openEntry()" title="Type food">⌨️</button>
+   <button onclick="startVoice()" title="Voice entry">🎙️</button>
+   <button onclick="showGraph()" title="Graphs">📉</button>
+   <button onclick="confirmExit()" title="Exit">❌</button>
+ </div>
+</div>
+
+<!-- Terminal entry overlay -->
+<div class="entry-overlay" id="entryOverlay">
+ <div class="entry-prompt">Enter food name:</div>
+ <div class="entry-typed" id="entryTyped"></div>
+ <div class="entry-match" id="entryMatch"></div>
+ <div class="entry-hint">hit enter for match<br>or press . for new item</div>
+ <input class="hidden-input" id="hiddenInput" type="text" autocomplete="off" autocorrect="off" spellcheck="false">
+</div>
+
+<!-- Calorie picker -->
+<div class="picker-overlay" id="pickerOverlay">
+ <div class="picker-box">
+   <div class="picker-seq" id="pickerSeq"></div>
+   <div class="picker-title" id="pickerTitle">Cals for: food</div>
+   <div class="mark-row">
+     <button class="mark-btn" id="markStar" onclick="toggleMark(1)">⭐ Good</button>
+     <button class="mark-btn" id="markFrown" onclick="toggleMark(-1)">☹️ Bad</button>
+     <button class="mark-btn" id="markNeutral" onclick="toggleMark(0)">😐 Neutral</button>
+   </div>
+   <button class="last-btn" id="lastBtn" onclick="pickLast()">↩ 0 (last used)</button>
+   <div class="cal-grid" id="calGrid"></div>
+   <input class="custom-input" id="customInput" type="number" placeholder="Enter calories" inputmode="numeric">
+   <div class="picker-actions">
+     <button onclick="toggleCustom()">Custom…</button>
+     <button onclick="confirmCustom()">OK</button>
+     <button onclick="closePicker()">Cancel</button>
+   </div>
+ </div>
+</div>
+
+<!-- Goal dialog -->
+<div class="dialog-overlay" id="goalDialog">
+ <div class="dialog-box">
+   <h3>Daily calorie goal</h3>
+   <input class="dialog-input" id="goalInput" type="number" placeholder="e.g. 2000" inputmode="numeric">
+   <div class="dialog-actions">
+     <button onclick="saveGoal()">Save</button>
+     <button onclick="closeGoalDialog()">Cancel</button>
+   </div>
+ </div>
+</div>
+
+<!-- Entry options -->
+<div class="options-overlay" id="optionsOverlay">
+ <div class="options-box">
+   <div class="options-title" id="optionsTitle"></div>
+   <button class="options-item" onclick="markEntry(1)">⭐ Good</button>
+   <button class="options-item" onclick="markEntry(-1)">☹️ Bad</button>
+   <button class="options-item" onclick="markEntry(0)">😐 Neutral</button>
+   <button class="options-item" onclick="deleteEntry()">🗑 Delete</button>
+   <button class="options-item" onclick="closeOptions()">Cancel</button>
+ </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Graph screen (hidden by default) -->
+<div id="graphScreen" style="display:none;position:fixed;inset:0;background:#000;z-index:50;flex-direction:column;max-width:420px;margin:0 auto">
+ <div class="toolbar">
+   <button class="icon-btn" onclick="closeGraph()" style="font-size:18px">← Back</button>
+   <span class="toolbar-title" style="font-size:16px">Graphs</span>
+   <span style="width:60px"></span>
+ </div>
+ <div style="display:flex;flex-wrap:wrap;gap:4px;padding:6px">
+   <button onclick="renderGraph('cals')" style="background:#001100;border:1px solid #003300;color:#00ff00;font-family:monospace;font-size:13px;padding:6px 10px;cursor:pointer">Cals</button>
+   <button onclick="renderGraph('items')" style="background:#001100;border:1px solid #003300;color:#00ff00;font-family:monospace;font-size:13px;padding:6px 10px;cursor:pointer">Items</button>
+   <button onclick="renderGraph('stars')" style="background:#001100;border:1px solid #003300;color:#00ff00;font-family:monospace;font-size:13px;padding:6px 10px;cursor:pointer">⭐ Stars</button>
+   <button onclick="renderGraph('frowns')" style="background:#001100;border:1px solid #003300;color:#00ff00;font-family:monospace;font-size:13px;padding:6px 10px;cursor:pointer">☹️ Frowns</button>
+   <button onclick="renderGraph('hour')" style="background:#001100;border:1px solid #003300;color:#00ff00;font-family:monospace;font-size:13px;padding:6px 10px;cursor:pointer">By Hour</button>
+   <button onclick="renderGraph('top')" style="background:#001100;border:1px solid #003300;color:#00ff00;font-family:monospace;font-size:13px;padding:6px 10px;cursor:pointer">Top Foods</button>
+ </div>
+ <div style="color:#00cc99;font-size:13px;padding:0 8px 4px;font-family:monospace" id="graphTitle"></div>
+ <canvas id="graphCanvas" style="flex:1;width:100%;max-height:360px"></canvas>
+ <div style="color:#003300;font-size:11px;text-align:center;padding:4px;font-family:monospace">— trend line</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+const QUICK_CALS = [0,25,50,75,100,125,150,175,200,250,300,350,400,450,500,600,700,800,900,1000];
+let db = null;
+let currentDate = todayStr();
+let goal = 0;
+let allEntries = [];  // {id, food, calories, date, time, mark}
+let marks = {};       // food -> mark
+let selectedMark = 0;
+let currentPickerFood = '';
+let currentPickerDefault = 0;
+let pickerQueue = [];   // for plus-sequence
+let pickerQueueIndex = 0;
+let pickerAutoLogged = 0;
+let typedText = '';
+let currentMatch = '';
+let excludeList = [];
+let activeEntry = null;
+let fastingInterval = null;
+let chartInstance = null;
+let recognitionInstance = null; // Stored globally to prevent garbage collection
+
+// ── Persistence (localStorage fallback for demo) ──────────────────────────
+function saveData() {
+ try {
+   localStorage.setItem('okcal_entries', JSON.stringify(allEntries));
+   localStorage.setItem('okcal_marks', JSON.stringify(marks));
+   localStorage.setItem('okcal_goal', String(goal));
+ } catch(e) {}
+}
+function loadData() {
+ try {
+   const e = localStorage.getItem('okcal_entries');
+   const m = localStorage.getItem('okcal_marks');
+   const g = localStorage.getItem('okcal_goal');
+   if (e) allEntries = JSON.parse(e);
+   if (m) marks = JSON.parse(m);
+   if (g) goal = parseInt(g) || 0;
+ } catch(e) {}
+}
+
+// ── Date utils ────────────────────────────────────────────────────────────
+function todayStr() {
+ const d = new Date();
+ const mm = String(d.getMonth()+1).padStart(2,'0');
+ const dd = String(d.getDate()).padStart(2,'0');
+ const yyyy = d.getFullYear();
+ return `${mm}-${dd}-${yyyy}`;
+}
+function timeStr() {
+ const d = new Date();
+ return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function dayOfWeek(dateStr) {
+ const [mm,dd,yyyy] = dateStr.split('-');
+ const days = ['(Sun)','(Mon)','(Tue)','(Wed)','(Thu)','(Fri)','(Sat)'];
+ return days[new Date(+yyyy,+mm-1,+dd).getDay()];
+}
+function shiftDate(delta) {
+ const [mm,dd,yyyy] = currentDate.split('-');
+ const d = new Date(+yyyy,+mm-1,+dd);
+ d.setDate(d.getDate()+delta);
+ const nm = String(d.getMonth()+1).padStart(2,'0');
+ const nd = String(d.getDate()).padStart(2,'0');
+ currentDate = `${nm}-${nd}-${d.getFullYear()}`;
+ render();
+}
+function goToday() { currentDate = todayStr(); render(); }
+
+// ── Voice parser ──────────────────────────────────────────────────────────
+const WORD_NUMS = {zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,
+ ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,
+ eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,
+ eighty:80,ninety:90,hundred:100,thousand:1000};
+const CAL_KEYWORDS = new Set(['calories','calorie','cal','points','point','pts','pt']);
+
+function parseFood(s) {
+ s = s.toLowerCase().trim();
+ if (!s) return null;
+ const words = s.split(/\s+/).filter(Boolean);
+ if (!words.length) return null;
+ const last = words[words.length-1];
+ if (CAL_KEYWORDS.has(last)) {
+   if (words.length < 2) return null;
+   const numWord = words[words.length-2];
+   const cals = parseInt(numWord) || WORD_NUMS[numWord];
+   if (cals === undefined) return null;
+   const food = words.slice(0,-2).join(' ').trim();
+   return food ? {food, calories: cals} : null;
+ } else {
+   const cals = parseInt(last);
+   const numVal = isNaN(cals) ? WORD_NUMS[last] : cals;
+   if (numVal === undefined) return null;
+   const food = words.slice(0,-1).join(' ').trim();
+   return food ? {food, calories: numVal} : null;
+ }
+}
+
+function parseMultiple(s) {
+ return s.split(/\bplus\b/i).map(x=>x.trim()).filter(Boolean)
+   .map(seg => parseFood(seg)).filter(Boolean);
+}
+
+// ── Autocomplete ──────────────────────────────────────────────────────────
+function getFoodMatches(prefix) {
+ const p = prefix.toLowerCase();
+ const seen = new Set();
+ return allEntries.slice().reverse()
+   .map(e => e.food)
+   .filter(f => { if (f.toLowerCase().startsWith(p) && !seen.has(f)) { seen.add(f); return true; } return false; })
+   .slice(0, 30);
+}
+
+function getLastCalories(food) {
+ for (let i = allEntries.length-1; i >= 0; i--) {
+   if (allEntries[i].food === food && allEntries[i].calories > 0) return allEntries[i].calories;
+ }
+ return 0;
+}
+
+// ── Entry mode ────────────────────────────────────────────────────────────
+function openEntry() {
+ typedText = ''; currentMatch = ''; excludeList = [];
+ document.getElementById('entryOverlay').classList.add('active');
+ document.getElementById('entryTyped').textContent = '';
+ document.getElementById('entryMatch').textContent = '';
+ const inp = document.getElementById('hiddenInput');
+ inp.value = '';
+ setTimeout(()=>inp.focus(), 100);
+}
+
+function closeEntry() {
+ document.getElementById('entryOverlay').classList.remove('active');
+ document.getElementById('hiddenInput').blur();
+}
+
+function updateMatchDisplay() {
+ const queryFor = typedText;
+ if (!queryFor) { document.getElementById('entryMatch').textContent = ''; currentMatch = ''; return; }
+ const matches = getFoodMatches(queryFor).filter(f => !excludeList.includes(f));
+ currentMatch = matches[0] || typedText;
+ document.getElementById('entryMatch').textContent = (currentMatch.toLowerCase() !== queryFor.toLowerCase()) ? currentMatch : '';
+}
+
+document.getElementById('hiddenInput').addEventListener('input', function(e) {
+ const raw = this.value;
+ if (raw.endsWith('.')) {
+   this.value = raw.slice(0,-1);
+   if (currentMatch && currentMatch !== typedText) excludeList.push(currentMatch);
+   updateMatchDisplay();
+   return;
+ }
+ const prevLen = typedText.length;
+ typedText = raw;
+ if (typedText.length < prevLen) excludeList = [];
+ else if (currentMatch) excludeList.push(currentMatch);
+ document.getElementById('entryTyped').textContent = typedText;
+ updateMatchDisplay();
+});
+
+document.getElementById('hiddenInput').addEventListener('keydown', function(e) {
+ if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); commitEntry(); }
+ if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeEntry(); }
+});
+
+function commitEntry() {
+ const typed = document.getElementById('hiddenInput').value.trim();
+ const food = (currentMatch && currentMatch !== '') ? currentMatch : typed;
+ if (!food) { closeEntry(); return; }
+ closeEntry();
+
+ if (/\bplus\b/i.test(food)) {
+   processPlusSegments(food.split(/\bplus\b/i).map(s=>s.trim()).filter(Boolean));
+   return;
+ }
+ const parsed = parseFood(food);
+ if (parsed) { recordFood(parsed.food, parsed.calories, 0); toast(`Added: ${parsed.food} (${parsed.calories} cal)`); return; }
+ showPicker(food, getLastCalories(food));
+}
+
+// ── Plus sequence ────────────────────────────────────────────────────────
+function processPlusSegments(segments) {
+ pickerQueue = [];
+ pickerAutoLogged = 0;
+ segments.forEach(seg => {
+   const p = parseFood(seg);
+   if (p) { recordFood(p.food, p.calories, 0); pickerAutoLogged++; }
+   else pickerQueue.push(seg);
+ });
+ if (!pickerQueue.length) { toast(`Added ${pickerAutoLogged} items`); return; }
+ pickerQueueIndex = 0;
+ showPickerFromQueue();
+}
+
+function showPickerFromQueue() {
+ if (pickerQueueIndex >= pickerQueue.length) {
+   toast(`Added ${pickerAutoLogged + pickerQueue.length} item${(pickerAutoLogged+pickerQueue.length)!==1?'s':''}`);
+   return;
+ }
+ const food = pickerQueue[pickerQueueIndex];
+ const seq = `${pickerQueueIndex+1} of ${pickerQueue.length + pickerAutoLogged}`;
+ showPicker(food, getLastCalories(food), seq, () => {
+   pickerQueueIndex++;
+   showPickerFromQueue();
+ });
+}
+
+// ── Calorie picker ────────────────────────────────────────────────────────
+let pickerCallback = null;
+
+function showPicker(food, defaultCals, seqLabel='', callback=null) {
+ currentPickerFood = food;
+ currentPickerDefault = defaultCals;
+ selectedMark = 0;
+ pickerCallback = callback;
+
+ document.getElementById('pickerTitle').textContent = `Cals for: ${food}`;
+ document.getElementById('pickerSeq').textContent = seqLabel;
+ document.getElementById('lastBtn').textContent = `↩ ${defaultCals} (last used)`;
+ document.getElementById('customInput').style.display = 'none';
+ document.getElementById('customInput').value = '';
+ ['markStar','markFrown','markNeutral'].forEach(id => document.getElementById(id).classList.remove('active'));
+
+ const grid = document.getElementById('calGrid');
+ grid.innerHTML = '';
+ QUICK_CALS.forEach(c => {
+   const btn = document.createElement('button');
+   btn.className = 'cal-btn';
+   btn.textContent = c;
+   btn.onclick = () => pickCal(c);
+   grid.appendChild(btn);
+ });
+
+ document.getElementById('pickerOverlay').classList.add('active');
+}
+
+function toggleMark(m) {
+ selectedMark = (selectedMark === m) ? 0 : m;
+ document.getElementById('markStar').classList.toggle('active', selectedMark === 1);
+ document.getElementById('markFrown').classList.toggle('active', selectedMark === -1);
+ document.getElementById('markNeutral').classList.toggle('active', selectedMark === 0 && m === 0);
+}
+
+function pickLast() { pickCal(currentPickerDefault); }
+
+function pickCal(cals) {
+ closePicker();
+ recordFood(currentPickerFood, cals, selectedMark);
+ if (pickerCallback) pickerCallback();
+}
+
+function toggleCustom() {
+ const inp = document.getElementById('customInput');
+ inp.style.display = inp.style.display === 'none' ? 'block' : 'none';
+ if (inp.style.display === 'block') inp.focus();
+}
+
+function confirmCustom() {
+ const v = parseInt(document.getElementById('customInput').value) || 0;
+ pickCal(v);
+}
+
+function closePicker() {
+ document.getElementById('pickerOverlay').classList.remove('active');
+}
+
+// ── Voice entry ───────────────────────────────────────────────────────────
+function startVoice() {
+ if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+   toast('Voice not available in this browser — try Chrome'); return;
+ }
+ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+ recognitionInstance = new SR();
+ recognitionInstance.lang = 'en-US'; 
+ recognitionInstance.maxAlternatives = 3;
+ recognitionInstance.onresult = e => {
+   const best = e.results[0][0].transcript;
+   if (/\bplus\b/i.test(best)) {
+     processPlusSegments(best.split(/\bplus\b/i).map(s=>s.trim()).filter(Boolean));
+   } else {
+     const p = parseFood(best);
+     if (p) { recordFood(p.food, p.calories, 0); toast(`Added: ${p.food} (${p.calories} cal)`); }
+     else showPicker(best, getLastCalories(best));
+   }
+ };
+ recognitionInstance.onerror = (e) => toast('Voice recognition failed: ' + e.error);
+ recognitionInstance.start();
+ toast('Listening…');
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────
+let nextId = 1;
+function recordFood(food, calories, mark) {
+ const entry = {id: nextId++, food: food.trim(), calories, date: currentDate, time: timeStr(), mark};
+ allEntries.push(entry);
+ if (mark !== 0) marks[food] = mark;
+ saveData();
+ render();
+}
+
+function deleteEntry() {
+ if (!activeEntry) return;
+ allEntries = allEntries.filter(e => e.id !== activeEntry.id);
+ saveData(); render(); closeOptions();
+}
+
+function markEntry(m) {
+ if (!activeEntry) return;
+ marks[activeEntry.food] = m;
+ allEntries.forEach(e => { if (e.food === activeEntry.food) e.mark = m; });
+ saveData(); render(); closeOptions();
+}
+
+// ── Options dialog ────────────────────────────────────────────────────────
+function openOptions(id) {
+ const entry = allEntries.find(x => x.id === id);
+ if (entry) showOptions(entry);
+}
+
+function showOptions(entry) {
+ activeEntry = entry;
+ document.getElementById('optionsTitle').textContent = entry.food;
+ document.getElementById('optionsOverlay').classList.add('active');
+}
+
+function closeOptions() {
+ document.getElementById('optionsOverlay').classList.remove('active');
+ activeEntry = null;
+}
+
+// ── Goal ──────────────────────────────────────────────────────────────────
+function showGoalDialog() {
+ document.getElementById('goalInput').value = goal || '';
+ document.getElementById('goalDialog').classList.add('active');
+ setTimeout(() => document.getElementById('goalInput').focus(), 100);
+}
+function closeGoalDialog() { document.getElementById('goalDialog').classList.remove('active'); }
+function saveGoal() {
+ const g = parseInt(document.getElementById('goalInput').value) || 0;
+ if (g > 0) { goal = g; saveData(); }
+ closeGoalDialog(); render();
+}
+
+// Add enter key support directly to the goal input box
+document.getElementById('goalInput').addEventListener('keydown', function(e) {
+ if (e.key === 'Enter') {
+   e.preventDefault();
+   e.stopPropagation();
+   saveGoal();
+ }
+});
+
+// ── Fasting timer ─────────────────────────────────────────────────────────
+function updateFasting() {
+ const positive = allEntries.filter(e => e.calories > 0)
+   .sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time));
+ if (!positive.length) { document.getElementById('fastingDiv').style.display = 'none'; return; }
+ const last = positive[0];
+ const [mm,dd,yyyy] = last.date.split('-');
+ const [hh,min] = last.time.split(':');
+ const lastMs = new Date(+yyyy,+mm-1,+dd,+hh,+min).getTime();
+ const elapsed = Date.now() - lastMs;
+ const totalMins = Math.floor(elapsed / 60000);
+ const hours = Math.floor(totalMins / 60);
+ const mins = totalMins % 60;
+ document.getElementById('fastingDiv').style.display = 'block';
+ document.getElementById('fastingDiv').textContent = `⏱ fasting: ${hours}h ${mins}m`;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+ // Date button
+ const isToday = currentDate === todayStr();
+ document.getElementById('dateBtn').textContent =
+   `${isToday ? 'Today' : currentDate}  ${dayOfWeek(currentDate)}`;
+
+ // Entries for current date
+ const dayEntries = allEntries.filter(e => e.date === currentDate)
+   .map(e => ({...e, mark: marks[e.food] ?? e.mark ?? 0}))
+   .reverse();
+
+ // Summary
+ const total = dayEntries.reduce((s,e) => s + (e.calories||0), 0);
+ const stars = dayEntries.filter(e => e.mark === 1).length;
+ const frowns = dayEntries.filter(e => e.mark === -1).length;
+ document.getElementById('summary').textContent = `⭐${stars}  ☹️${frowns}  ${dayEntries.length} items  ${total} cal`;
+
+ // Goal
+ const goalBtn = document.getElementById('goalBtn');
+ if (goal > 0) {
+   const left = goal - total;
+   const pct = Math.round(100 * total / goal);
+   goalBtn.textContent = left >= 0 ? `${left} cal left (${pct}%)` : `OVER by ${-left} (${pct}%)`;
+   goalBtn.className = 'goal-btn' + (left < 0 ? ' over' : '');
+ } else {
+   goalBtn.textContent = 'Tap to set daily goal';
+   goalBtn.className = 'goal-btn';
+ }
+
+ // Entries list
+ const list = document.getElementById('entriesList');
+ if (!dayEntries.length) {
+   list.innerHTML = '<div class="empty">No entries yet.<br>Tap ⌨️ to add food.</div>';
+ } else {
+   list.innerHTML = dayEntries.map(e => {
+     const markIcon = e.mark === 1 ? '⭐' : e.mark === -1 ? '☹️' : '';
+     const calDisplay = e.calories ? e.calories : '—';
+     return `<div class="entry" onclick="openOptions(${e.id})">
+       <span class="mark">${markIcon}</span>
+       <span class="food">${e.food}</span>
+       <span class="cals">${calDisplay}</span>
+     </div>`;
+   }).join('');
+ }
+
+ updateFasting();
+}
+
+// ── Graphs ────────────────────────────────────────────────────────────────
+function showGraph() {
+ document.getElementById('graphScreen').style.display = 'flex';
+ renderGraph('cals');
+}
+function closeGraph() {
+ document.getElementById('graphScreen').style.display = 'none';
+}
+
+function renderGraph(type) {
+ const titles = {cals:'Daily Calories (30 days)',items:'Daily Items (30 days)',
+   stars:'Stars ⭐ per day (30 days)',frowns:'Frowns ☹️ per day (30 days)',
+   hour:'Calories by Hour of Day',top:'Top Foods by Calories'};
+ document.getElementById('graphTitle').textContent = titles[type] || '';
+
+ // Build data
+ let labels = [], values = [], showTrend = false;
+
+ if (type === 'cals' || type === 'items' || type === 'stars' || type === 'frowns') {
+   showTrend = true;
+   const days = 30;
+   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+   const dateMap = {};
+   allEntries.forEach(e => {
+     const [mm,dd,yyyy] = e.date.split('-');
+     const d = new Date(+yyyy,+mm-1,+dd);
+     if (d < cutoff) return;
+     if (!dateMap[e.date]) dateMap[e.date] = {cals:0,items:0,stars:0,frowns:0};
+     dateMap[e.date].cals += e.calories || 0;
+     dateMap[e.date].items++;
+     const m = marks[e.food] ?? e.mark ?? 0;
+     if (m === 1) dateMap[e.date].stars++;
+     if (m === -1) dateMap[e.date].frowns++;
+   });
+   const sorted = Object.keys(dateMap).sort();
+   labels = sorted.map(d => d.slice(0,5));
+   values = sorted.map(d => dateMap[d][type === 'cals' ? 'cals' : type === 'items' ? 'items' : type === 'stars' ? 'stars' : 'frowns']);
+ } else if (type === 'hour') {
+   const hourMap = {};
+   allEntries.forEach(e => {
+     if (!e.calories) return;
+     const h = parseInt(e.time.split(':')[0]);
+     hourMap[h] = (hourMap[h]||0) + e.calories;
+   });
+   const sorted = Object.keys(hourMap).sort((a,b)=>+a-+b);
+   labels = sorted.map(h => `${String(h).padStart(2,'0')}:00`);
+   values = sorted.map(h => hourMap[h]);
+ } else if (type === 'top') {
+   const foodMap = {};
+   allEntries.forEach(e => { if (e.calories) foodMap[e.food] = (foodMap[e.food]||0) + e.calories; });
+   const sorted = Object.entries(foodMap).sort((a,b)=>b[1]-a[1]).slice(0,15);
+   labels = sorted.map(([f]) => f.length > 12 ? f.slice(0,12)+'…' : f);
+   values = sorted.map(([,v]) => v);
+ }
+
+ if (!labels.length) {
+   document.getElementById('graphTitle').textContent += '\n(no data yet)';
+   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+   return;
+ }
+
+ const avg = values.reduce((s,v)=>s+v,0)/values.length;
+ const bgColors = values.map(v => v > avg ? '#cc3333' : '#33cc66');
+
+ const datasets = [{
+   type: 'bar', data: values, backgroundColor: bgColors,
+   borderColor: bgColors, borderWidth: 0, label: ''
+ }];
+
+ if (showTrend && values.length >= 2) {
+   const n = values.length;
+   const xs = values.map((_,i)=>i);
+   const sumX = xs.reduce((s,x)=>s+x,0);
+   const sumY = values.reduce((s,v)=>s+v,0);
+   const sumXY = xs.reduce((s,x,i)=>s+x*values[i],0);
+   const sumX2 = xs.reduce((s,x)=>s+x*x,0);
+   const denom = n*sumX2 - sumX*sumX;
+   const slope = denom ? (n*sumXY - sumX*sumY)/denom : 0;
+   const intercept = (sumY - slope*sumX)/n;
+   datasets.push({
+     type: 'line', data: [{x:0,y:intercept},{x:n-1,y:intercept+slope*(n-1)}],
+     borderColor: '#ffff00', borderWidth: 2, pointRadius: 0,
+     fill: false, label: 'Trend', tension: 0
+   });
+ }
+
+ const canvas = document.getElementById('graphCanvas');
+ if (chartInstance) chartInstance.destroy();
+ chartInstance = new Chart(canvas, {
+   type: 'bar',
+   data: { labels, datasets },
+   options: {
+     responsive: true, maintainAspectRatio: false,
+     animation: { duration: 400 },
+     plugins: { legend: { display: false } },
+     scales: {
+       x: { ticks: { color: '#00ff00', font: { family: 'monospace', size: 10 }, maxRotation: 45 },
+            grid: { color: '#001100' } },
+       y: { ticks: { color: '#00ff00', font: { family: 'monospace', size: 10 } },
+            grid: { color: '#001100' }, beginAtZero: true }
+     }
+   }
+ });
+}
+
+// ── Export ────────────────────────────────────────────────────────────────
+function exportCSV() {
+ if (!allEntries.length) { toast('No data to export'); return; }
+ const rows = ['date,time,food,calories,mark'];
+ allEntries.forEach(e => {
+   const m = e.mark === 1 ? 'good' : e.mark === -1 ? 'bad' : 'neutral';
+   const food = e.food.includes(',') ? `"${e.food}"` : e.food;
+   rows.push(`${e.date},${e.time},${food},${e.calories},${m}`);
+ });
+ const blob = new Blob([rows.join('\n')], {type:'text/csv'});
+ const a = document.createElement('a');
+ a.href = URL.createObjectURL(blob);
+ a.download = `okcal_export_${todayStr()}.csv`;
+ a.click();
+}
+
+// ── Exit ──────────────────────────────────────────────────────────────────
+function confirmExit() {
+ window.close();
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────
+function toast(msg) {
+ const t = document.getElementById('toast');
+ t.textContent = msg; t.style.display = 'block';
+ clearTimeout(t._timer);
+ t._timer = setTimeout(() => t.style.display = 'none', 2500);
+}
+
+// ── Keyboard shortcuts (desktop) ──────────────────────────────────────────
+document.addEventListener('keydown', e => {
+ if (document.getElementById('entryOverlay').classList.contains('active')) return;
+ if (document.getElementById('pickerOverlay').classList.contains('active')) return;
+ if (document.getElementById('goalDialog').classList.contains('active')) return;
+ if (document.getElementById('optionsOverlay').classList.contains('active')) return;
+ 
+ if (e.key === 'Enter' || e.key === ' ') { 
+   e.preventDefault(); 
+   openEntry(); 
+ }
+ if (e.key === 'ArrowLeft') shiftDate(-1);
+ if (e.key === 'ArrowRight') shiftDate(1);
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadData();
+nextId = allEntries.reduce((m,e) => Math.max(m, e.id||0), 0) + 1;
+render();
+setInterval(updateFasting, 60000);
+</script>
+</body>
+</html>
